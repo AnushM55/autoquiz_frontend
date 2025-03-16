@@ -10,9 +10,10 @@ import { Link } from 'react-router-dom';
 
 interface QuizCardProps {
   quiz: Quiz;
+  selectionMode?: boolean;
 }
 
-export function QuizCard({ quiz }: QuizCardProps) {
+export function QuizCard({ quiz, selectionMode }: QuizCardProps) {
   const statusColors = {
     [QuizStatus.DRAFT]: 'bg-yellow-100 text-yellow-800',
     [QuizStatus.APPROVED]: 'bg-green-100 text-green-800',
@@ -25,7 +26,7 @@ export function QuizCard({ quiz }: QuizCardProps) {
   };
 
   return (
-    <Card className="h-full flex flex-col hover:shadow-md transition-shadow duration-200">
+    <Card className={`h-full flex flex-col hover:shadow-md transition-shadow duration-200 ${selectionMode ? 'opacity-90' : ''}`}>
       <CardHeader>
         <div className="flex justify-between items-start">
           <CardTitle className="text-lg font-bold truncate">{quiz.title}</CardTitle>
@@ -47,12 +48,14 @@ export function QuizCard({ quiz }: QuizCardProps) {
         </div>
       </CardContent>
       <CardFooter>
-        <Link to={`/quizzes/${quiz.id}`} className="w-full">
-          <Button variant="default" className="w-full gap-2">
-            <FileEditIcon className="h-4 w-4" />
-            View Details
-          </Button>
-        </Link>
+        {!selectionMode && (
+          <Link to={`/quizzes/${quiz.id}`} className="w-full">
+            <Button variant="default" className="w-full gap-2">
+              <FileEditIcon className="h-4 w-4" />
+              View Details
+            </Button>
+          </Link>
+        )}
       </CardFooter>
     </Card>
   );

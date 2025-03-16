@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { createQuiz, createQuizFromFile } from '@/services/api';
+import { createQuiz, createQuizFromFile, createQuizFromText } from '@/services/api';
 import { QuizCreate, Question } from '@/types/quiz';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   PlusCircle, 
   TrashIcon, 
@@ -27,11 +28,14 @@ const CreateQuiz = () => {
   const [questions, setQuestions] = useState<Question[]>([
     {
       text: '',
-      options: ['', '', '', ''],
+      options: ['', ''],
       correct_answer_index: 0,
     },
   ]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [rawText, setRawText] = useState('');
+  const [tabValue, setTabValue] = useState('manual');
+  const [suggestedTitle, setSuggestedTitle] = useState('');
 
   const createQuizMutation = useMutation({
     mutationFn: createQuiz,
@@ -52,6 +56,17 @@ const CreateQuiz = () => {
     },
     onError: (error: Error) => {
       toast.error(`Failed to create quiz from file: ${error.message}`);
+    },
+  });
+
+  const createQuizFromTextMutation = useMutation({
+    mutationFn: (text: string) => createQuizFromText(text, suggestedTitle || undefined),
+    onSuccess: () => {
+      toast.success('Quiz created successfully from text');
+      navigate('/');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create quiz from text: ${error.message}`);
     },
   });
 
@@ -99,12 +114,23 @@ const CreateQuiz = () => {
     createQuizMutation.mutate(quizData);
   };
 
+  const handleRawTextSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!rawText.trim()) {
+      toast.error('Please enter some text for the quiz');
+      return;
+    }
+    
+    createQuizFromTextMutation.mutate(rawText);
+  };
+
   const addQuestion = () => {
     setQuestions([
       ...questions,
       {
         text: '',
-        options: ['', '', ''],
+        options: ['', ''],
         correct_answer_index: 0,
       },
     ]);
@@ -170,13 +196,17 @@ const CreateQuiz = () => {
     }
 
     // Only accept text files
-    if (file.type !== 'text/plain') {
-      toast.error('Only text files are accepted');
+    if (file.type !== 'text/plain' && !file.name.endsWith('.md')) {
+      toast.error('Only text files (.txt, .md) are supported');
       return;
     }
 
     const formData = new FormData();
     formData.append('file', file);
+    
+    if (suggestedTitle) {
+      formData.append('suggested_title', suggestedTitle);
+    }
     
     createQuizFromFileMutation.mutate(formData);
   };
@@ -194,176 +224,248 @@ const CreateQuiz = () => {
         <h1 className="text-3xl font-bold tracking-tight">Create New Quiz</h1>
       </div>
 
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Quiz Details</h2>
-        <div className="flex gap-2">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            className="hidden"
-            accept=".txt"
-          />
-          <Button
-            type="button"
-            onClick={triggerFileUpload}
-            variant="outline"
-            className="gap-2"
-            disabled={createQuizFromFileMutation.isPending}
-          >
-            <Upload className="h-4 w-4" />
-            {createQuizFromFileMutation.isPending ? 'Uploading...' : 'Import from Text File'}
-          </Button>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quiz Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Quiz Title</Label>
-              <Input
-                id="title"
-                placeholder="Enter quiz title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description (Optional)</Label>
-              <Textarea
-                id="description"
-                placeholder="Enter quiz description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Questions</h2>
-            <Button
-              type="button"
-              onClick={addQuestion}
-              variant="outline"
-              className="gap-2"
-            >
-              <PlusCircle className="h-4 w-4" />
-              Add Question
-            </Button>
-          </div>
-
-          {questions.map((question, qIndex) => (
-            <Card key={qIndex} className="relative">
-              <Button
-                type="button"
-                onClick={() => removeQuestion(qIndex)}
-                variant="ghost"
-                size="icon"
-                className="absolute right-2 top-2 h-8 w-8 text-destructive hover:text-destructive"
-              >
-                <TrashIcon className="h-4 w-4" />
-              </Button>
-
+      <Tabs value={tabValue} onValueChange={setTabValue}>
+        <TabsList className="grid grid-cols-3 w-full mb-6">
+          <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+          <TabsTrigger value="text">From Text</TabsTrigger>
+          <TabsTrigger value="file">From File</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="manual">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Question {qIndex + 1}</CardTitle>
+                <CardTitle>Quiz Details</CardTitle>
               </CardHeader>
-
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor={`question-${qIndex}`}>Question Text</Label>
+                  <Label htmlFor="title">Quiz Title</Label>
                   <Input
-                    id={`question-${qIndex}`}
-                    placeholder="Enter question text"
-                    value={question.text}
-                    onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)}
+                    id="title"
+                    placeholder="Enter quiz title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
                     required
                   />
                 </div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <Label>Options</Label>
-                    <Button
-                      type="button"
-                      onClick={() => addOption(qIndex)}
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1"
-                    >
-                      <PlusCircle className="h-3 w-3" />
-                      Add Option
-                    </Button>
-                  </div>
-                  
-                  {question.options.map((option, oIndex) => (
-                    <div key={oIndex} className="flex gap-2 items-center">
-                      <Input
-                        placeholder={`Option ${oIndex + 1}`}
-                        value={option}
-                        onChange={(e) =>
-                          updateOption(qIndex, oIndex, e.target.value)
-                        }
-                        required
-                      />
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          id={`correct-${qIndex}-${oIndex}`}
-                          name={`correct-${qIndex}`}
-                          checked={question.correct_answer_index === oIndex}
-                          onChange={() =>
-                            updateQuestion(qIndex, 'correct_answer_index', oIndex)
-                          }
-                          className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
-                        />
-                        <Label
-                          htmlFor={`correct-${qIndex}-${oIndex}`}
-                          className="text-sm"
-                        >
-                          Correct
-                        </Label>
-                        
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive"
-                          onClick={() => removeOption(qIndex, oIndex)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description (Optional)</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Enter quiz description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                  />
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
 
-        <Separator />
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold">Questions</h2>
+                <Button
+                  type="button"
+                  onClick={addQuestion}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Add Question
+                </Button>
+              </div>
 
-        <div className="flex justify-end">
-          <Button
-            type="submit"
-            disabled={createQuizMutation.isPending}
-            className="gap-2"
-          >
-            <Send className="h-4 w-4" />
-            {createQuizMutation.isPending
-              ? 'Creating Quiz...'
-              : 'Create Quiz'}
-          </Button>
-        </div>
-      </form>
+              {questions.map((question, qIndex) => (
+                <Card key={qIndex} className="relative">
+                  <Button
+                    type="button"
+                    onClick={() => removeQuestion(qIndex)}
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-2 h-8 w-8 text-destructive hover:text-destructive"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </Button>
+
+                  <CardHeader>
+                    <CardTitle className="text-lg">Question {qIndex + 1}</CardTitle>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`question-${qIndex}`}>Question Text</Label>
+                      <Input
+                        id={`question-${qIndex}`}
+                        placeholder="Enter question text"
+                        value={question.text}
+                        onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <Label>Options</Label>
+                        <Button
+                          type="button"
+                          onClick={() => addOption(qIndex)}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1"
+                        >
+                          <PlusCircle className="h-3 w-3" />
+                          Add Option
+                        </Button>
+                      </div>
+                      
+                      {question.options.map((option, oIndex) => (
+                        <div key={oIndex} className="flex gap-2 items-center">
+                          <Input
+                            placeholder={`Option ${oIndex + 1}`}
+                            value={option}
+                            onChange={(e) =>
+                              updateOption(qIndex, oIndex, e.target.value)
+                            }
+                            required
+                          />
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              id={`correct-${qIndex}-${oIndex}`}
+                              name={`correct-${qIndex}`}
+                              checked={question.correct_answer_index === oIndex}
+                              onChange={() =>
+                                updateQuestion(qIndex, 'correct_answer_index', oIndex)
+                              }
+                              className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
+                            />
+                            <Label
+                              htmlFor={`correct-${qIndex}-${oIndex}`}
+                              className="text-sm"
+                            >
+                              Correct
+                            </Label>
+                            
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => removeOption(qIndex, oIndex)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <Separator />
+
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                disabled={createQuizMutation.isPending}
+                className="gap-2"
+              >
+                <Send className="h-4 w-4" />
+                {createQuizMutation.isPending
+                  ? 'Creating Quiz...'
+                  : 'Create Quiz'}
+              </Button>
+            </div>
+          </form>
+        </TabsContent>
+        
+        <TabsContent value="text">
+          <Card>
+            <CardHeader>
+              <CardTitle>Create Quiz from Text</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleRawTextSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="suggested-title">Suggested Title (Optional)</Label>
+                  <Input
+                    id="suggested-title"
+                    placeholder="Suggest a title for the quiz"
+                    value={suggestedTitle}
+                    onChange={(e) => setSuggestedTitle(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="raw-text">Quiz Content</Label>
+                  <Textarea
+                    id="raw-text"
+                    placeholder="Paste your quiz content here. Our AI will extract questions and answers automatically."
+                    value={rawText}
+                    onChange={(e) => setRawText(e.target.value)}
+                    rows={10}
+                    className="font-mono text-sm"
+                    required
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full gap-2"
+                  disabled={createQuizFromTextMutation.isPending}
+                >
+                  <Send className="h-4 w-4" />
+                  {createQuizFromTextMutation.isPending ? 'Processing...' : 'Create Quiz from Text'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="file">
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload Text File</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground">
+                Upload a text file (.txt, .md) containing your quiz content. Our AI will automatically extract questions and answers.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="suggested-title-file">Suggested Title (Optional)</Label>
+                <Input
+                  id="suggested-title-file"
+                  placeholder="Suggest a title for the quiz"
+                  value={suggestedTitle}
+                  onChange={(e) => setSuggestedTitle(e.target.value)}
+                />
+              </div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                className="hidden"
+                accept=".txt,.md"
+              />
+              <Button
+                type="button"
+                onClick={triggerFileUpload}
+                variant="outline"
+                className="w-full h-32 border-dashed gap-2 flex flex-col items-center justify-center"
+                disabled={createQuizFromFileMutation.isPending}
+              >
+                <Upload className="h-8 w-8 opacity-50" />
+                <span className="font-medium">
+                  {createQuizFromFileMutation.isPending ? 'Uploading...' : 'Click to upload or drag and drop'}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  TXT or MD files only
+                </span>
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
