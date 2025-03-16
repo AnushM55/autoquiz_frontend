@@ -1,18 +1,17 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { createQuiz } from '@/services/api';
-import { Question, QuizCreate } from '@/types/quiz';
+import { QuizCreate, Question } from '@/types/quiz';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { PlusCircle, MinusCircle, ArrowLeft, Save, AlertTriangle } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PlusCircle, TrashIcon, ArrowLeft, Send } from 'lucide-react';
+import { toast } from 'sonner';
 
 const CreateQuiz = () => {
   const navigate = useNavigate();
@@ -28,16 +27,55 @@ const CreateQuiz = () => {
 
   const createQuizMutation = useMutation({
     mutationFn: createQuiz,
-    onSuccess: (data) => {
-      toast.success('Quiz created successfully!');
-      navigate(`/quizzes/${data.id}`);
+    onSuccess: () => {
+      toast.success('Quiz created successfully');
+      navigate('/');
     },
     onError: (error: Error) => {
       toast.error(`Failed to create quiz: ${error.message}`);
     },
   });
 
-  const handleAddQuestion = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate form
+    if (!title.trim()) {
+      toast.error('Please enter a quiz title');
+      return;
+    }
+
+    if (questions.length === 0) {
+      toast.error('Please add at least one question');
+      return;
+    }
+
+    // Validate each question
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.text.trim()) {
+        toast.error(`Question ${i + 1} text is required`);
+        return;
+      }
+
+      for (let j = 0; j < q.options.length; j++) {
+        if (!q.options[j].trim()) {
+          toast.error(`Option ${j + 1} for Question ${i + 1} is required`);
+          return;
+        }
+      }
+    }
+
+    const quizData: QuizCreate = {
+      title,
+      description: description.trim() ? description : undefined,
+      questions,
+    };
+
+    createQuizMutation.mutate(quizData);
+  };
+
+  const addQuestion = () => {
     setQuestions([
       ...questions,
       {
@@ -48,89 +86,41 @@ const CreateQuiz = () => {
     ]);
   };
 
-  const handleRemoveQuestion = (index: number) => {
+  const removeQuestion = (index: number) => {
     if (questions.length > 1) {
       setQuestions(questions.filter((_, i) => i !== index));
     } else {
-      toast.error('Quiz must have at least one question');
+      toast.error('You need at least one question');
     }
   };
 
-  const handleQuestionChange = (index: number, field: keyof Question, value: string | number) => {
+  const updateQuestion = (index: number, field: keyof Question, value: string | number) => {
     const updatedQuestions = [...questions];
     
-    if (field === 'options') {
-      // This case will be handled separately
-      return;
+    if (field === 'text') {
+      updatedQuestions[index].text = value as string;
+    } else if (field === 'correct_answer_index') {
+      updatedQuestions[index].correct_answer_index = value as number;
     }
     
-    updatedQuestions[index][field] = value;
     setQuestions(updatedQuestions);
   };
 
-  const handleOptionChange = (questionIndex: number, optionIndex: number, value: string) => {
+  const updateOption = (questionIndex: number, optionIndex: number, value: string) => {
     const updatedQuestions = [...questions];
     updatedQuestions[questionIndex].options[optionIndex] = value;
     setQuestions(updatedQuestions);
   };
 
-  const handleCorrectAnswerChange = (questionIndex: number, optionIndex: number) => {
-    const updatedQuestions = [...questions];
-    updatedQuestions[questionIndex].correct_answer_index = optionIndex;
-    setQuestions(updatedQuestions);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate form
-    if (!title.trim()) {
-      toast.error('Please enter a quiz title');
-      return;
-    }
-    
-    // Check if any questions are empty
-    const hasEmptyQuestion = questions.some(q => !q.text.trim());
-    if (hasEmptyQuestion) {
-      toast.error('Please fill in all question texts');
-      return;
-    }
-    
-    // Check if any options are empty
-    const hasEmptyOption = questions.some(q => 
-      q.options.some(option => !option.trim())
-    );
-    if (hasEmptyOption) {
-      toast.error('Please fill in all answer options');
-      return;
-    }
-    
-    const newQuiz: QuizCreate = {
-      title,
-      description: description.trim() || undefined,
-      questions,
-    };
-    
-    createQuizMutation.mutate(newQuiz);
-  };
-
   return (
-    <div className="container max-w-3xl py-6 space-y-6">
+    <div className="container max-w-4xl py-6 space-y-6">
       <div className="flex items-center gap-2">
         <Button variant="outline" size="icon" onClick={() => navigate('/')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <h1 className="text-3xl font-bold tracking-tight">Create New Quiz</h1>
       </div>
-      
-      <Alert>
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Information</AlertTitle>
-        <AlertDescription>
-          Once created, a Google Form will be automatically generated for this quiz.
-        </AlertDescription>
-      </Alert>
-      
+
       <form onSubmit={handleSubmit} className="space-y-8">
         <Card>
           <CardHeader>
@@ -141,32 +131,31 @@ const CreateQuiz = () => {
               <Label htmlFor="title">Quiz Title</Label>
               <Input
                 id="title"
+                placeholder="Enter quiz title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter quiz title"
                 required
               />
             </div>
-            
             <div className="space-y-2">
               <Label htmlFor="description">Description (Optional)</Label>
               <Textarea
                 id="description"
+                placeholder="Enter quiz description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter quiz description"
                 rows={3}
               />
             </div>
           </CardContent>
         </Card>
-        
+
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Questions</h2>
-            <Button 
-              type="button" 
-              onClick={handleAddQuestion}
+            <Button
+              type="button"
+              onClick={addQuestion}
               variant="outline"
               className="gap-2"
             >
@@ -174,59 +163,65 @@ const CreateQuiz = () => {
               Add Question
             </Button>
           </div>
-          
-          {questions.map((question, questionIndex) => (
-            <Card key={questionIndex} className="relative">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-lg">Question {questionIndex + 1}</CardTitle>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleRemoveQuestion(questionIndex)}
-                    className="h-8 w-8"
-                  >
-                    <MinusCircle className="h-4 w-4" />
-                  </Button>
-                </div>
+
+          {questions.map((question, qIndex) => (
+            <Card key={qIndex} className="relative">
+              <Button
+                type="button"
+                onClick={() => removeQuestion(qIndex)}
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-2 h-8 w-8 text-destructive hover:text-destructive"
+              >
+                <TrashIcon className="h-4 w-4" />
+              </Button>
+
+              <CardHeader>
+                <CardTitle className="text-lg">Question {qIndex + 1}</CardTitle>
               </CardHeader>
-              
-              <CardContent className="space-y-6">
+
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor={`question-${questionIndex}`}>Question Text</Label>
+                  <Label htmlFor={`question-${qIndex}`}>Question Text</Label>
                   <Input
-                    id={`question-${questionIndex}`}
-                    value={question.text}
-                    onChange={(e) => handleQuestionChange(questionIndex, 'text', e.target.value)}
+                    id={`question-${qIndex}`}
                     placeholder="Enter question text"
+                    value={question.text}
+                    onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)}
                     required
                   />
                 </div>
-                
-                <div className="space-y-4">
-                  <Label>Answer Options</Label>
-                  <p className="text-sm text-muted-foreground -mt-2">
-                    Select the radio button next to the correct answer
-                  </p>
-                  
-                  {question.options.map((option, optionIndex) => (
-                    <div key={optionIndex} className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id={`question-${questionIndex}-option-${optionIndex}`}
-                        name={`question-${questionIndex}-correct`}
-                        checked={question.correct_answer_index === optionIndex}
-                        onChange={() => handleCorrectAnswerChange(questionIndex, optionIndex)}
-                        className="h-4 w-4 text-primary"
-                      />
+
+                <div className="space-y-3">
+                  <Label>Options</Label>
+                  {question.options.map((option, oIndex) => (
+                    <div key={oIndex} className="flex gap-2 items-center">
                       <Input
+                        placeholder={`Option ${oIndex + 1}`}
                         value={option}
-                        onChange={(e) => handleOptionChange(questionIndex, optionIndex, e.target.value)}
-                        placeholder={`Option ${optionIndex + 1}`}
+                        onChange={(e) =>
+                          updateOption(qIndex, oIndex, e.target.value)
+                        }
                         required
-                        className="flex-1"
                       />
+                      <div className="flex items-center">
+                        <input
+                          type="radio"
+                          id={`correct-${qIndex}-${oIndex}`}
+                          name={`correct-${qIndex}`}
+                          checked={question.correct_answer_index === oIndex}
+                          onChange={() =>
+                            updateQuestion(qIndex, 'correct_answer_index', oIndex)
+                          }
+                          className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
+                        />
+                        <Label
+                          htmlFor={`correct-${qIndex}-${oIndex}`}
+                          className="ml-2 text-sm"
+                        >
+                          Correct
+                        </Label>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -234,15 +229,19 @@ const CreateQuiz = () => {
             </Card>
           ))}
         </div>
-        
-        <div className="flex justify-end pt-4">
+
+        <Separator />
+
+        <div className="flex justify-end">
           <Button
             type="submit"
-            className="gap-2"
             disabled={createQuizMutation.isPending}
+            className="gap-2"
           >
-            <Save className="h-4 w-4" />
-            {createQuizMutation.isPending ? 'Creating Quiz...' : 'Create Quiz'}
+            <Send className="h-4 w-4" />
+            {createQuizMutation.isPending
+              ? 'Creating Quiz...'
+              : 'Create Quiz'}
           </Button>
         </div>
       </form>

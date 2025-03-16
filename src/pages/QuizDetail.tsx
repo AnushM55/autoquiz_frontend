@@ -222,45 +222,53 @@ const QuizDetail = () => {
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">Questions</h2>
 
-        {quiz.questions.map((question, questionIndex) => (
-          <Card key={questionIndex}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Question {questionIndex + 1}</CardTitle>
-              <CardDescription>{question.text}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {question.options.map((option, optionIndex) => (
-                  <div
-                    key={optionIndex}
-                    className={`p-3 rounded-md border ${
-                      optionIndex === question.correct_answer_index
-                        ? 'border-green-300 bg-green-50'
-                        : 'border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      {optionIndex === question.correct_answer_index && (
-                        <div className="flex-shrink-0 h-5 w-5 rounded-full bg-green-500 flex items-center justify-center mt-0.5">
-                          <Check className="h-3 w-3 text-white" />
-                        </div>
-                      )}
-                      <span
-                        className={
-                          optionIndex === question.correct_answer_index
-                            ? 'font-medium text-green-700'
-                            : ''
-                        }
-                      >
-                        {option}
-                      </span>
+        {quiz.questions && quiz.questions.length > 0 ? (
+          quiz.questions.map((question, questionIndex) => (
+            <Card key={questionIndex}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Question {questionIndex + 1}</CardTitle>
+                <CardDescription>{question.text}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {question.options.map((option, optionIndex) => (
+                    <div
+                      key={optionIndex}
+                      className={`p-3 rounded-md border ${
+                        optionIndex === question.correct_answer_index
+                          ? 'border-green-300 bg-green-50'
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {optionIndex === question.correct_answer_index && (
+                          <div className="flex-shrink-0 h-5 w-5 rounded-full bg-green-500 flex items-center justify-center mt-0.5">
+                            <Check className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                        <span
+                          className={
+                            optionIndex === question.correct_answer_index
+                              ? 'font-medium text-green-700'
+                              : ''
+                          }
+                        >
+                          {option}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-muted-foreground">No questions available for this quiz.</p>
             </CardContent>
           </Card>
-        ))}
+        )}
       </div>
 
       <Separator />

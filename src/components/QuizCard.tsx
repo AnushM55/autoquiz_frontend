@@ -43,7 +43,7 @@ export function QuizCard({ quiz }: QuizCardProps) {
           <span>Created: {formatDate(quiz.created_at)}</span>
         </div>
         <div className="mt-2 text-sm">
-          <span className="font-medium">{quiz.questions.length}</span> question{quiz.questions.length !== 1 ? 's' : ''}
+          <span className="font-medium">{quiz.questions?.length || 0}</span> question{quiz.questions?.length !== 1 ? 's' : ''}
         </div>
       </CardContent>
       <CardFooter>
