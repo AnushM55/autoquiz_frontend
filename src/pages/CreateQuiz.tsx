@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { createQuiz } from '@/services/api';
+import { createQuiz, createQuizFromFile } from '@/services/api';
 import { QuizCreate, Question } from '@/types/quiz';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, TrashIcon, ArrowLeft, Send } from 'lucide-react';
+import { 
+  PlusCircle, 
+  TrashIcon, 
+  ArrowLeft, 
+  Send, 
+  X, 
+  Upload
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 const CreateQuiz = () => {
@@ -24,6 +31,7 @@ const CreateQuiz = () => {
       correct_answer_index: 0,
     },
   ]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const createQuizMutation = useMutation({
     mutationFn: createQuiz,
@@ -33,6 +41,17 @@ const CreateQuiz = () => {
     },
     onError: (error: Error) => {
       toast.error(`Failed to create quiz: ${error.message}`);
+    },
+  });
+
+  const createQuizFromFileMutation = useMutation({
+    mutationFn: createQuizFromFile,
+    onSuccess: () => {
+      toast.success('Quiz created successfully from file');
+      navigate('/');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create quiz from file: ${error.message}`);
     },
   });
 
@@ -58,6 +77,11 @@ const CreateQuiz = () => {
         return;
       }
 
+      if (q.options.length < 2) {
+        toast.error(`Question ${i + 1} must have at least 2 options`);
+        return;
+      }
+
       for (let j = 0; j < q.options.length; j++) {
         if (!q.options[j].trim()) {
           toast.error(`Option ${j + 1} for Question ${i + 1} is required`);
@@ -80,7 +104,7 @@ const CreateQuiz = () => {
       ...questions,
       {
         text: '',
-        options: ['', '', '', ''],
+        options: ['', '', ''],
         correct_answer_index: 0,
       },
     ]);
@@ -112,6 +136,55 @@ const CreateQuiz = () => {
     setQuestions(updatedQuestions);
   };
 
+  const addOption = (questionIndex: number) => {
+    const updatedQuestions = [...questions];
+    updatedQuestions[questionIndex].options.push('');
+    setQuestions(updatedQuestions);
+  };
+
+  const removeOption = (questionIndex: number, optionIndex: number) => {
+    const updatedQuestions = [...questions];
+    
+    // Don't remove if there are only 2 options
+    if (updatedQuestions[questionIndex].options.length <= 2) {
+      toast.error('Questions must have at least 2 options');
+      return;
+    }
+    
+    // Update correct answer index if needed
+    if (optionIndex === updatedQuestions[questionIndex].correct_answer_index) {
+      updatedQuestions[questionIndex].correct_answer_index = 0;
+    } else if (optionIndex < updatedQuestions[questionIndex].correct_answer_index) {
+      updatedQuestions[questionIndex].correct_answer_index--;
+    }
+    
+    updatedQuestions[questionIndex].options.splice(optionIndex, 1);
+    setQuestions(updatedQuestions);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      toast.error('Please select a file');
+      return;
+    }
+
+    // Only accept text files
+    if (file.type !== 'text/plain') {
+      toast.error('Only text files are accepted');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    createQuizFromFileMutation.mutate(formData);
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className="container max-w-4xl py-6 space-y-6">
       <div className="flex items-center gap-2">
@@ -119,6 +192,29 @@ const CreateQuiz = () => {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <h1 className="text-3xl font-bold tracking-tight">Create New Quiz</h1>
+      </div>
+
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Quiz Details</h2>
+        <div className="flex gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+            accept=".txt"
+          />
+          <Button
+            type="button"
+            onClick={triggerFileUpload}
+            variant="outline"
+            className="gap-2"
+            disabled={createQuizFromFileMutation.isPending}
+          >
+            <Upload className="h-4 w-4" />
+            {createQuizFromFileMutation.isPending ? 'Uploading...' : 'Import from Text File'}
+          </Button>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -193,7 +289,20 @@ const CreateQuiz = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <Label>Options</Label>
+                  <div className="flex justify-between items-center">
+                    <Label>Options</Label>
+                    <Button
+                      type="button"
+                      onClick={() => addOption(qIndex)}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1"
+                    >
+                      <PlusCircle className="h-3 w-3" />
+                      Add Option
+                    </Button>
+                  </div>
+                  
                   {question.options.map((option, oIndex) => (
                     <div key={oIndex} className="flex gap-2 items-center">
                       <Input
@@ -204,7 +313,7 @@ const CreateQuiz = () => {
                         }
                         required
                       />
-                      <div className="flex items-center">
+                      <div className="flex items-center gap-2">
                         <input
                           type="radio"
                           id={`correct-${qIndex}-${oIndex}`}
@@ -217,10 +326,20 @@ const CreateQuiz = () => {
                         />
                         <Label
                           htmlFor={`correct-${qIndex}-${oIndex}`}
-                          className="ml-2 text-sm"
+                          className="text-sm"
                         >
                           Correct
                         </Label>
+                        
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => removeOption(qIndex, oIndex)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                       </div>
                     </div>
                   ))}

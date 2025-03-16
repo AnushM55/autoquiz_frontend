@@ -44,6 +44,20 @@ export const createQuiz = async (quiz: QuizCreate): Promise<Quiz> => {
   return await response.json();
 };
 
+export const createQuizFromFile = async (formData: FormData): Promise<Quiz> => {
+  const response = await fetch(`${API_URL}/quizzes/import`, {
+    method: 'POST',
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`Error importing quiz: ${JSON.stringify(errorData)}`);
+  }
+  
+  return await response.json();
+};
+
 export const approveQuiz = async (quizId: string, emailData: EmailRecipients): Promise<Quiz> => {
   const response = await fetch(`${API_URL}/quizzes/${quizId}/approve`, {
     method: 'POST',
