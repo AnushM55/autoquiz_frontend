@@ -1,5 +1,4 @@
 
-import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { PlusIcon, LayoutDashboardIcon } from 'lucide-react';
@@ -15,7 +14,7 @@ export function Navbar() {
       <div className="container flex items-center justify-between h-16 px-4 md:px-6">
         <Link to="/" className="text-xl font-bold text-primary">
           <div className="flex items-center space-x-2">
-            <span className="hidden sm:inline-block">AutoForms</span>
+          <span className="hidden sm:inline-block">AutoQuiz</span>
             <span className="sm:hidden">AF</span>
           </div>
         </Link>
